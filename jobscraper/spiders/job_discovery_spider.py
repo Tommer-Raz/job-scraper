@@ -41,13 +41,20 @@ class JobDiscoverySpider(scrapy.Spider):
             href = self.parse_href(response, el.attrib.get("href"))
             if not href:
                 continue
-            
-            yield JobCandidate(
+
+            job = JobCandidate(
                 company=self._company_from_url(response.url),
                 title=text,
                 href=href,
                 source_url=response.url,
             )
+            yield response.follow(href, callback=self.parse_job_page, meta={"job": dict(job)})
+            # yield JobCandidate(
+            #     company=self._company_from_url(response.url),
+            #     title=text,
+            #     href=href,
+            #     source_url=response.url,
+            # )
 
     def parse_text(self, text):
             if not text:
@@ -70,20 +77,31 @@ class JobDiscoverySpider(scrapy.Spider):
             return None
         return parsed_href
 
+    def clean_description(self, description):
+        cleaned_desc = re.sub(r'\s+', ' ', description).strip()
+        cleaned_desc = re.sub(r'[\u200b\u200c\u200d]', '', cleaned_desc)
+        return cleaned_desc
+
     def parse_job_page(self, response):
         """
-        Case 1: Job has its own page
+        Case 1: Jobs has its own page
         Extract description from HTML
         """
         job = response.meta["job"]
 
+        for s in response.xpath("//script | //style"): 
+            s.drop()
+
         description = response.css(
-            "main, article, .job-description, .description"
+            ".page-content, main, article, .job-description, .description"
         ).xpath("string(.)").get()
-        self.logger.warning(f"DESCRIPTION: {description}")
+        
+        # self.logger.error(description)
+        description = self.clean_description(description)
+        
         yield {
             **job,
-            "description": description.strip() if description else None,
+            "description": description,
             "resolved_via": "navigate"
         }
 
