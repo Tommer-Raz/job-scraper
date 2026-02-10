@@ -33,28 +33,59 @@ class JobDiscoverySpider(scrapy.Spider):
         """
 
         # We deliberately over-collect and filter in code
-        for el in response.css("a, button, div, li"):
-            text = el.xpath("normalize-space(.)").get()
+        for el in response.css("a[href], button, div, li"):
+            text = self.parse_text(el.xpath("normalize-space(.)").get())
             if not text:
                 continue
 
-            # Heuristic filters (cheap + deterministic)
-            if len(text) < 5 or len(text) > 80:
+            href = self.parse_href(response, el.attrib.get("href"))
+            if not href:
                 continue
-            if self.NOISE_KEYWORDS.search(text):
-                continue
-            if not self.ROLE_KEYWORDS.search(text):
-                continue
-
-            href = el.attrib.get("href")
-
+            
             yield JobCandidate(
                 company=self._company_from_url(response.url),
                 title=text,
-                href=response.urljoin(href) if href else None,
-                source_url=response.
-                url,
+                href=href,
+                source_url=response.url,
             )
+
+    def parse_text(self, text):
+            if not text:
+                return None
+            # Heuristic filters (cheap + deterministic)
+            if len(text) < 5 or len(text) > 80:
+                return None
+            if self.NOISE_KEYWORDS.search(text):
+                return None
+            if not self.ROLE_KEYWORDS.search(text):
+                return None
+            return text
+    
+    # Check if link is not just the same link
+    def parse_href(self, response, href):
+        if not href:
+            return None
+        parsed_href = response.urljoin(href)
+        if parsed_href == response.url:
+            return None
+        return parsed_href
+
+    def parse_job_page(self, response):
+        """
+        Case 1: Job has its own page
+        Extract description from HTML
+        """
+        job = response.meta["job"]
+
+        description = response.css(
+            "main, article, .job-description, .description"
+        ).xpath("string(.)").get()
+        self.logger.warning(f"DESCRIPTION: {description}")
+        yield {
+            **job,
+            "description": description.strip() if description else None,
+            "resolved_via": "navigate"
+        }
 
     def _company_from_url(self, url):
         # trivial placeholder, you already have this in CSV
