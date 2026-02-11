@@ -44,7 +44,26 @@ class JobDiscoverySpider(scrapy.Spider):
         Happen on a followup of a job link - when the job is in it's own page.
         """
         job = response.meta["job"]
+        structured_desc = self.json_ld_description_extract(response)
 
+        if structured_desc:
+            job["description"] = self.clean_description(remove_tags(structured_desc))
+            job["resolved_via"] = "json-ld"
+        else:
+            for s in response.xpath("//script | //style"): 
+                s.drop()
+
+            description = response.css(
+                ".page-content, main, article, .job-description, .description"
+            ).xpath("string(.)").get()
+
+            # self.logger.error(description)
+            job["description"] = self.clean_description(description)
+            job["resolved_via"] = "navigate"
+        
+        yield job
+
+    def json_ld_description_extract(self, response):
         json_ld_data = response.xpath('//script[@type="application/ld+json"]/text()').getall()
     
         structured_desc = None
@@ -61,23 +80,7 @@ class JobDiscoverySpider(scrapy.Spider):
                     break
             except (json.JSONDecodeError, KeyError):
                 continue
-        if structured_desc:
-            # JSON-LD descriptions often contain HTML tags, so we still clean it
-            job["description"] = self.clean_description(remove_tags(structured_desc))
-            job["resolved_via"] = "json-ld"
-        else:
-            for s in response.xpath("//script | //style"): 
-                s.drop()
-
-            description = response.css(
-                ".page-content, main, article, .job-description, .description"
-            ).xpath("string(.)").get()
-
-            # self.logger.error(description)
-            job["description"] = self.clean_description(description)
-            job["resolved_via"] = "navigate"
-        
-        yield job
+        return structured_desc
 
     def html_extract(self, response):
         # We deliberately over-collect and filter in code
