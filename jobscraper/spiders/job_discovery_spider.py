@@ -1,37 +1,42 @@
 import scrapy
 import re
+import json
 from jobscraper.items import JobCandidate
 
 class JobDiscoverySpider(scrapy.Spider):
     name = "job_discovery"
-
-    # Seed URLs = your CSV careers pages
-    start_urls = [
-        "https://dreamgroup.com/careers/",
-        # many more
-    ]
-
+    # start_urls = ["https://www.comeet.com/jobs/4Manalytics/B6.00F"]
     ROLE_KEYWORDS = re.compile(
-        r"\b(devops|mlops|sre)\b",
-        re.IGNORECASE
-    )
+    r"\b(devops|mlops)\s+(engineer)\b|\bSRE\b",
+    re.IGNORECASE
+)
 
     NOISE_KEYWORDS = re.compile(
         r"(privacy|terms|about|contact|blog|login)",
         re.IGNORECASE
     )
+
+    def __init__(self, urls_file=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.start_urls = []
+
+        if urls_file:
+            with open(urls_file, "r", encoding="utf8") as f:
+                data = json.load(f)
+                for item in data:
+                    url = item.get("Careers URL")
+                    if url:
+                        self.start_urls.append(url)
+
     async def start(self):
         for url in self.start_urls:
             yield scrapy.Request(url, callback=self.parse)
     
     def parse(self, response):
-        """
-        Phase A:
-        - Iterate over clickable / visible text nodes
-        - Identify job-like titles
-        - Emit candidate job items
-        """
+        for job in self.html_extract(response):
+            yield job
 
+    def html_extract(self, response):
         # We deliberately over-collect and filter in code
         for el in response.css("a[href], button, div, li"):
             text = self.parse_text(el.xpath("normalize-space(.)").get())
@@ -49,13 +54,7 @@ class JobDiscoverySpider(scrapy.Spider):
                 source_url=response.url,
             )
             yield response.follow(href, callback=self.parse_job_page, meta={"job": dict(job)})
-            # yield JobCandidate(
-            #     company=self._company_from_url(response.url),
-            #     title=text,
-            #     href=href,
-            #     source_url=response.url,
-            # )
-
+    
     def parse_text(self, text):
             if not text:
                 return None
@@ -95,7 +94,7 @@ class JobDiscoverySpider(scrapy.Spider):
         description = response.css(
             ".page-content, main, article, .job-description, .description"
         ).xpath("string(.)").get()
-        
+
         # self.logger.error(description)
         description = self.clean_description(description)
         
