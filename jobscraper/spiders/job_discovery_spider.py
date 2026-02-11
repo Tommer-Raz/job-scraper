@@ -2,6 +2,7 @@ import scrapy
 import re
 import json
 from jobscraper.items import JobCandidate
+from w3lib.html import remove_tags
 
 class JobDiscoverySpider(scrapy.Spider):
     name = "job_discovery"
@@ -35,6 +36,48 @@ class JobDiscoverySpider(scrapy.Spider):
     def parse(self, response):
         for job in self.html_extract(response):
             yield job
+
+            
+    def parse_job_page(self, response):
+        """
+        Parse the description from the position page.
+        Happen on a followup of a job link - when the job is in it's own page.
+        """
+        job = response.meta["job"]
+
+        json_ld_data = response.xpath('//script[@type="application/ld+json"]/text()').getall()
+    
+        structured_desc = None
+        for data in json_ld_data:
+            try:
+                parsed = json.loads(data)
+                # Sometimes it's a list, sometimes a single object
+                if isinstance(parsed, list):
+                    parsed = parsed[0]
+
+                # Check if this specific JSON is a "JobPosting"
+                if parsed.get("@type") == "JobPosting":
+                    structured_desc = parsed.get("description")
+                    break
+            except (json.JSONDecodeError, KeyError):
+                continue
+        if structured_desc:
+            # JSON-LD descriptions often contain HTML tags, so we still clean it
+            job["description"] = self.clean_description(remove_tags(structured_desc))
+            job["resolved_via"] = "json-ld"
+        else:
+            for s in response.xpath("//script | //style"): 
+                s.drop()
+
+            description = response.css(
+                ".page-content, main, article, .job-description, .description"
+            ).xpath("string(.)").get()
+
+            # self.logger.error(description)
+            job["description"] = self.clean_description(description)
+            job["resolved_via"] = "navigate"
+        
+        yield job
 
     def html_extract(self, response):
         # We deliberately over-collect and filter in code
@@ -80,30 +123,7 @@ class JobDiscoverySpider(scrapy.Spider):
         cleaned_desc = re.sub(r'\s+', ' ', description).strip()
         cleaned_desc = re.sub(r'[\u200b\u200c\u200d]', '', cleaned_desc)
         return cleaned_desc
-
-    def parse_job_page(self, response):
-        """
-        Case 1: Jobs has its own page
-        Extract description from HTML
-        """
-        job = response.meta["job"]
-
-        for s in response.xpath("//script | //style"): 
-            s.drop()
-
-        description = response.css(
-            ".page-content, main, article, .job-description, .description"
-        ).xpath("string(.)").get()
-
-        # self.logger.error(description)
-        description = self.clean_description(description)
-        
-        yield {
-            **job,
-            "description": description,
-            "resolved_via": "navigate"
-        }
-
+    
     def _company_from_url(self, url):
         # trivial placeholder, you already have this in CSV
         return url.split("//")[1].split("/")[0]
