@@ -6,7 +6,7 @@ from w3lib.html import remove_tags
 
 class JobDiscoverySpider(scrapy.Spider):
     name = "job_discovery"
-    start_urls = ["https://www.comeet.com/jobs/arpeely/57.001"]
+    # start_urls = ["https://www.comeet.com/jobs/arpeely/57.001"]
     ROLE_KEYWORDS = re.compile(
     r"\b(devops|mlops)\s+(engineer)\b|\bSRE\b",
     re.IGNORECASE
@@ -17,17 +17,17 @@ class JobDiscoverySpider(scrapy.Spider):
         re.IGNORECASE
     )
 
-    # def __init__(self, urls_file=None, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-    #     self.start_urls = []
+    def __init__(self, urls_file=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.start_urls = []
 
-    #     if urls_file:
-    #         with open(urls_file, "r", encoding="utf8") as f:
-    #             data = json.load(f)
-    #             for item in data:
-    #                 url = item.get("Careers URL")
-    #                 if url:
-    #                     self.start_urls.append(url)
+        if urls_file:
+            with open(urls_file, "r", encoding="utf8") as f:
+                data = json.load(f)
+                for item in data:
+                    url = item.get("Careers URL")
+                    if url:
+                        self.start_urls.append(url)
 
     async def start(self):
         for url in self.start_urls:
@@ -47,9 +47,17 @@ class JobDiscoverySpider(scrapy.Spider):
         Happen on a followup of a job link - when the job is in it's own page.
         """
         job = response.meta["job"]
+        script_text = response.xpath('//script[contains(text(), "POSITION_DATA")]/text()').get()
         structured_desc = self.json_ld_description_extract(response)
-
-        if structured_desc:
+        
+        if script_text:
+            pos_details = self.js_var_extract(script_text, "POSITION_DATA")
+            details_list = json.loads(pos_details).get("custom_fields", {}).get("details", [])
+            full_description = [item.get("value", "") for item in details_list if item.get("value")]
+            combined_description = "\n\n".join(full_description)
+            job["description"] = self.clean_description(remove_tags(combined_description))
+            job["resolved_via"] = "js"
+        elif structured_desc:
             job["description"] = self.clean_description(remove_tags(structured_desc))
             job["resolved_via"] = "json-ld"
         else:
