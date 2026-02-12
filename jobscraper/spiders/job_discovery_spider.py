@@ -34,9 +34,9 @@ class JobDiscoverySpider(scrapy.Spider):
             yield scrapy.Request(url, callback=self.parse)
     
     def parse(self, response):
-        script_text = response.xpath('//script[contains(text(), "COMPANY_POSITIONS_DATA")]/text()').get()
+        script_text = self.js_var_extract(response, "COMPANY_POSITIONS_DATA")
         if script_text:
-            yield from self.script_extract(response, script_text, "COMPANY_POSITIONS_DATA")
+            yield from self.script_extract(response, script_text)
         else:
             for job in self.html_extract(response):
                 yield job
@@ -47,11 +47,10 @@ class JobDiscoverySpider(scrapy.Spider):
         Happen on a followup of a job link - when the job is in it's own page.
         """
         job = response.meta["job"]
-        script_text = response.xpath('//script[contains(text(), "POSITION_DATA")]/text()').get()
+        pos_details = self.js_var_extract(response, "POSITION_DATA")
         structured_desc = self.json_ld_description_extract(response)
-        
-        if script_text:
-            pos_details = self.js_var_extract(script_text, "POSITION_DATA")
+
+        if pos_details:
             details_list = json.loads(pos_details).get("custom_fields", {}).get("details", [])
             full_description = [item.get("value", "") for item in details_list if item.get("value")]
             combined_description = "\n\n".join(full_description)
@@ -93,41 +92,36 @@ class JobDiscoverySpider(scrapy.Spider):
                 continue
         return structured_desc
 
-    def script_extract(self, response, script_text, var_name):
-        # 1. Find the script tag containing COMPANY_POSITIONS_DATA
-        # We look for the text of any script that mentions our variable
-        # 2. Use Regex to capture everything between the '=' and the ';'
-        # This looks for COMPANY_POSITIONS_DATA followed by any whitespace, =, whitespace, 
-        # and then captures the array []
-        json_string = self.js_var_extract(script_text, var_name)
-        if json_string:
-            try:
-                positions = json.loads(json_string)
-                for pos in positions:
-                    # Check our role keywords against the 'name' field
-                    if self.ROLE_KEYWORDS.search(pos.get('name', '')):
-                        job_url = pos.get('url_active_page')
-                        job = JobCandidate(
-                            company=self._company_from_url(response.url),
-                            title=pos.get('name'),
-                            href=job_url,
-                            source_url=response.url,
-                        )
-                        yield response.follow(
-                            job_url, 
-                            callback=self.parse_job_page, 
-                            meta={'job': dict(job)} # Pass the JSON data we already have
-                        )
-            except json.JSONDecodeError:
-                self.logger.error("Failed to parse JSON from script")
+    def script_extract(self, response, script_text):
+        try:
+            positions = json.loads(script_text)
+            for pos in positions:
+                if self.ROLE_KEYWORDS.search(pos.get('name', '')):
+                    job_url = pos.get('url_active_page')
+                    job = JobCandidate(
+                        company=self._company_from_url(response.url),
+                        title=pos.get('name'),
+                        href=job_url,
+                        source_url=response.url,
+                    )
+                    yield response.follow(
+                        job_url, 
+                        callback=self.parse_job_page, 
+                        meta={'job': dict(job)} # Pass the JSON data we already have
+                    )
+        except json.JSONDecodeError:
+            self.logger.error("Failed to parse JSON from script")
     
-    def js_var_extract(self, script_text, var_name):
-        pattern = rf'{var_name}\s*=\s*(\[.*?\]|\{{.*?\}});'
-        match = re.search(pattern, script_text, re.DOTALL)
+    def js_var_extract(self, response, var_name):
+        xpath_pattern = rf'//script[contains(text(), "{var_name}")]/text()'
+        script_text = response.xpath(xpath_pattern).get()
+        if script_text:
+            regex_pattern = rf'{var_name}\s*=\s*(\[.*?\]|\{{.*?\}});'
+            match = re.search(regex_pattern, script_text, re.DOTALL)
 
-        if match:
-            json_string = match.group(1)
-            return json_string
+            if match:
+                json_string = match.group(1)
+                return json_string
         return None
 
     def html_extract(self, response):
