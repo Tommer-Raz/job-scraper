@@ -19,59 +19,63 @@ class JobDiscoverySpider(scrapy.Spider):
 
     def __init__(self, urls_file=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.start_urls = []
+        self.companies = []
 
         if urls_file:
             with open(urls_file, "r", encoding="utf8") as f:
-                data = json.load(f)
-                for item in data:
-                    url = item.get("Careers URL")
-                    if url:
-                        self.start_urls.append(url)
+                self.companies = json.load(f)
+                # for item in data:
+                    # url = item.get("Careers URL")
+                    # if url:
+                    #     self.start_urls.append(url)
 
     async def start(self):
-        for url in self.start_urls:
-            yield scrapy.Request(url, callback=self.parse)
+        for company in self.companies:
+            job = JobCandidate(
+                company = company.get("Company"),
+                source_url = company.get("Careers URL")
+            )
+            yield scrapy.Request(company.get("Careers URL"), callback=self.parse, meta={"job": dict(job)})
     
     def parse(self, response):
+        job = response.meta["job"]
         script_text = self.js_var_extract(response, "COMPANY_POSITIONS_DATA")
         if script_text:
-            yield from self.script_extract(response, script_text)
+            yield from self.script_extract(response, script_text, job)
         else:
-            for job in self.html_extract(response):
-                yield job
+            yield from self.html_extract(response, job)
       
     def parse_job_page(self, response):
         """
         Parse the description from the position page.
         Happen on a followup of a job link - when the job is in it's own page.
         """
-        job = response.meta["job"]
-        pos_details = self.js_var_extract(response, "POSITION_DATA")
-        structured_desc = self.json_ld_description_extract(response)
+        job = response.meta["job"]       
+        if job["resolved_via"] == "js":
+            pos_details = self.js_var_extract(response, "POSITION_DATA")
+            if pos_details:
+                details_list = json.loads(pos_details).get("custom_fields", {}).get("details", [])
+                full_description = [item.get("value", "") for item in details_list if item.get("value")]
+                combined_description = "\n\n".join(full_description)
+                job["description"] = self.clean_description(remove_tags(combined_description))
+                job["resolved_via"] = "js"
+        elif job["resolved_via"] == "html_extract":
+            structured_desc = self.json_ld_description_extract(response)
+            if structured_desc:
+                job["description"] = self.clean_description(remove_tags(structured_desc))
+                job["resolved_via"] = "json-ld"
+            else:
+                for s in response.xpath("//script | //style"): 
+                    s.drop()
 
-        if pos_details:
-            details_list = json.loads(pos_details).get("custom_fields", {}).get("details", [])
-            full_description = [item.get("value", "") for item in details_list if item.get("value")]
-            combined_description = "\n\n".join(full_description)
-            job["description"] = self.clean_description(remove_tags(combined_description))
-            job["resolved_via"] = "js"
-        elif structured_desc:
-            job["description"] = self.clean_description(remove_tags(structured_desc))
-            job["resolved_via"] = "json-ld"
-        else:
-            for s in response.xpath("//script | //style"): 
-                s.drop()
+                description = response.css(
+                    ".page-content, main, article, .job-description, .description"
+                ).xpath("string(.)").get()
 
-            description = response.css(
-                ".page-content, main, article, .job-description, .description"
-            ).xpath("string(.)").get()
+                job["description"] = self.clean_description(description)
+                job["resolved_via"] = "html_extract"
 
-            # self.logger.error(description)
-            job["description"] = self.clean_description(description)
-            job["resolved_via"] = "navigate"
-        
-        yield job
+            yield job
 
     def json_ld_description_extract(self, response):
         json_ld_data = response.xpath('//script[@type="application/ld+json"]/text()').getall()
@@ -92,18 +96,15 @@ class JobDiscoverySpider(scrapy.Spider):
                 continue
         return structured_desc
 
-    def script_extract(self, response, script_text):
+    def script_extract(self, response, script_text, job):
         try:
             positions = json.loads(script_text)
             for pos in positions:
                 if self.ROLE_KEYWORDS.search(pos.get('name', '')):
                     job_url = pos.get('url_active_page')
-                    job = JobCandidate(
-                        company=self._company_from_url(response.url),
-                        title=pos.get('name'),
-                        href=job_url,
-                        source_url=response.url,
-                    )
+                    job['title'] = pos.get('name')
+                    job['href'] = pos.get('job_url')
+                    job['resolved_via'] = 'js'
                     yield response.follow(
                         job_url, 
                         callback=self.parse_job_page, 
@@ -124,7 +125,7 @@ class JobDiscoverySpider(scrapy.Spider):
                 return json_string
         return None
 
-    def html_extract(self, response):
+    def html_extract(self, response, job):
         # We deliberately over-collect and filter in code
         for el in response.css("a[href], button, div, li"):
             text = self.parse_text(el.xpath("normalize-space(.)").get())
@@ -134,13 +135,9 @@ class JobDiscoverySpider(scrapy.Spider):
             href = self.parse_href(response, el.attrib.get("href"))
             if not href:
                 continue
-
-            job = JobCandidate(
-                company=self._company_from_url(response.url),
-                title=text,
-                href=href,
-                source_url=response.url,
-            )
+            job['title'] = text
+            job['href'] = href
+            job['resolved_via'] = 'html_extract'
             yield response.follow(href, callback=self.parse_job_page, meta={"job": dict(job)})
     
     def parse_text(self, text):
