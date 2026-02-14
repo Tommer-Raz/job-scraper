@@ -3,6 +3,7 @@ import re
 import json
 from jobscraper.items import JobCandidate
 from w3lib.html import remove_tags
+from scrapy_playwright.page import PageMethod
 
 class JobDiscoverySpider(scrapy.Spider):
     name = "job_discovery"
@@ -24,26 +25,54 @@ class JobDiscoverySpider(scrapy.Spider):
         if urls_file:
             with open(urls_file, "r", encoding="utf8") as f:
                 self.companies = json.load(f)
-                # for item in data:
-                    # url = item.get("Careers URL")
-                    # if url:
-                    #     self.start_urls.append(url)
 
     async def start(self):
-        for company in self.companies:
-            job = JobCandidate(
-                company = company.get("Company"),
-                source_url = company.get("Careers URL")
+        # for company in self.companies:
+            # job = JobCandidate(
+            #     company = company.get("Company"),
+            #     source_url = company.get("Careers URL")
+            # )
+            # yield scrapy.Request(company.get("Careers URL"), callback=self.parse, meta={"job": dict(job)})
+        job = JobCandidate(
+                company = "zenity",
+                source_url = "https://zenity.io/careers"
             )
-            yield scrapy.Request(company.get("Careers URL"), callback=self.parse, meta={"job": dict(job)})
+        yield scrapy.Request("https://zenity.io/careers", callback=self.parse, meta={"job": dict(job)})
     
     def parse(self, response):
         job = response.meta["job"]
+        found_any = False
         script_text = self.js_var_extract(response, "COMPANY_POSITIONS_DATA")
         if script_text:
-            yield from self.script_extract(response, script_text, job)
-        else:
-            yield from self.html_extract(response, job)
+            self.logger.error("hello2")
+            for pos in self.script_extract(response, script_text, job):
+                found_any = True
+                yield pos 
+        if not found_any:
+            self.logger.error("hello1")
+            for pos in self.html_extract(response, job):
+                found_any = True
+                yield pos 
+        if not found_any and not response.meta.get("is_playwright"):
+            self.logger.error(response.body)
+            yield scrapy.Request(
+            url=response.url,
+            callback=self.parse,
+            meta={
+                "job": job,
+                "playwright": True, 
+                "is_playwright": True, # Mark this so we don't loop forever
+                "playwright_page_methods": [
+                    # Option A: Wait until the network goes quiet (Next.js is done fetching)
+                    # PageMethod("wait_for_load_state", "networkidle"),
+
+                    # Option B: Wait for ANY link in the careers section 
+                    # (Adjust the selector based on the container ID if known)
+                    PageMethod("wait_for_selector", "a[href*='job'], a[href*='career']"), 
+                ],
+            },
+            dont_filter=True # Tell Scrapy: "Yes, I know I just visited this URL, do it anyway."
+        )
       
     def parse_job_page(self, response):
         """
@@ -127,12 +156,18 @@ class JobDiscoverySpider(scrapy.Spider):
 
     def html_extract(self, response, job):
         # We deliberately over-collect and filter in code
-        for el in response.css("a[href], button, div, li"):
+        for el in response.css("a[href], button, div, li, span, h1, h2, h3, h4, h5, h6"):
             text = self.parse_text(el.xpath("normalize-space(.)").get())
             if not text:
                 continue
 
-            href = self.parse_href(response, el.attrib.get("href"))
+            # href = self.parse_href(response, el.attrib.get("href"))
+            href = self.parse_href(response, el.xpath(
+            ".//@href | "                     # Link is the element itself
+            "./ancestor::a/@href | "          # Link is a parent
+            "./preceding-sibling::a[1]/@href | " # Link is a sibling (like Zenity!)
+            "../following-sibling::a[1]/@href"  # Link is a sibling after
+        ).get())
             if not href:
                 continue
             job['title'] = text
@@ -162,10 +197,8 @@ class JobDiscoverySpider(scrapy.Spider):
         return parsed_href
 
     def clean_description(self, description):
+        if not description:
+            return None
         cleaned_desc = re.sub(r'\s+', ' ', description).strip()
         cleaned_desc = re.sub(r'[\u200b\u200c\u200d]', '', cleaned_desc)
         return cleaned_desc
-    
-    def _company_from_url(self, url):
-        # trivial placeholder, you already have this in CSV
-        return url.split("//")[1].split("/")[0]

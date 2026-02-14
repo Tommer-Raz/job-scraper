@@ -1,0 +1,106 @@
+2026-02-14 13:47:03 [scrapy.utils.log] INFO: Scrapy 2.14.1 started (bot: jobscraper)
+2026-02-14 13:47:03 [scrapy.utils.log] INFO: Versions:
+{'lxml': '6.0.2',
+ 'libxml2': '2.11.9',
+ 'cssselect': '1.4.0',
+ 'parsel': '1.11.0',
+ 'w3lib': '2.4.0',
+ 'Twisted': '25.5.0',
+ 'Python': '3.11.4 (tags/v3.11.4:d2340ef, Jun  7 2023, 05:45:37) [MSC v.1934 '
+           '64 bit (AMD64)]',
+ 'pyOpenSSL': '25.3.0 (OpenSSL 3.5.5 27 Jan 2026)',
+ 'cryptography': '46.0.4',
+ 'Platform': 'Windows-10-10.0.26100-SP0'}
+2026-02-14 13:47:03 [scrapy.crawler] DEBUG: Using AsyncCrawlerProcess
+2026-02-14 13:47:03 [asyncio] DEBUG: Using selector: SelectSelector
+2026-02-14 13:47:03 [scrapy.addons] INFO: Enabled addons:
+[]
+2026-02-14 13:47:03 [scrapy.utils.log] DEBUG: Using reactor: twisted.internet.asyncioreactor.AsyncioSelectorReactor
+2026-02-14 13:47:03 [scrapy.utils.log] DEBUG: Using asyncio event loop: asyncio.windows_events._WindowsSelectorEventLoop
+2026-02-14 13:47:03 [scrapy.extensions.telnet] INFO: Telnet Password: 1a426df6006a8bf8
+2026-02-14 13:47:03 [scrapy.middleware] INFO: Enabled extensions:
+['scrapy.extensions.corestats.CoreStats',
+ 'scrapy.extensions.logcount.LogCount',
+ 'scrapy.extensions.telnet.TelnetConsole',
+ 'scrapy.extensions.logstats.LogStats']
+2026-02-14 13:47:03 [scrapy.crawler] INFO: Overridden settings:
+{'BOT_NAME': 'jobscraper',
+ 'CONCURRENT_REQUESTS_PER_DOMAIN': 1,
+ 'DOWNLOAD_DELAY': 1,
+ 'FEED_EXPORT_ENCODING': 'utf-8',
+ 'LOG_FILE': 'spider1.log',
+ 'NEWSPIDER_MODULE': 'jobscraper.spiders',
+ 'ROBOTSTXT_OBEY': True,
+ 'SPIDER_MODULES': ['jobscraper.spiders'],
+ 'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+               '(KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36'}
+2026-02-14 13:47:03 [asyncio] DEBUG: Using proactor: IocpProactor
+2026-02-14 13:47:03 [scrapy-playwright] INFO: Started loop on separate thread: <ProactorEventLoop running=True closed=False debug=False>
+2026-02-14 13:47:04 [scrapy.middleware] INFO: Enabled downloader middlewares:
+['scrapy.downloadermiddlewares.offsite.OffsiteMiddleware',
+ 'scrapy.downloadermiddlewares.robotstxt.RobotsTxtMiddleware',
+ 'scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware',
+ 'scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware',
+ 'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware',
+ 'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware',
+ 'scrapy.downloadermiddlewares.retry.RetryMiddleware',
+ 'scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware',
+ 'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware',
+ 'scrapy.downloadermiddlewares.redirect.RedirectMiddleware',
+ 'scrapy.downloadermiddlewares.cookies.CookiesMiddleware',
+ 'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware',
+ 'scrapy.downloadermiddlewares.stats.DownloaderStats']
+2026-02-14 13:47:04 [scrapy.middleware] INFO: Enabled spider middlewares:
+['scrapy.spidermiddlewares.start.StartSpiderMiddleware',
+ 'scrapy.spidermiddlewares.httperror.HttpErrorMiddleware',
+ 'scrapy.spidermiddlewares.referer.RefererMiddleware',
+ 'scrapy.spidermiddlewares.urllength.UrlLengthMiddleware',
+ 'scrapy.spidermiddlewares.depth.DepthMiddleware']
+2026-02-14 13:47:04 [scrapy.middleware] INFO: Enabled item pipelines:
+[]
+2026-02-14 13:47:04 [scrapy.core.engine] INFO: Spider opened
+2026-02-14 13:47:04 [scrapy.extensions.logstats] INFO: Crawled 0 pages (at 0 pages/min), scraped 0 items (at 0 items/min)
+2026-02-14 13:47:04 [scrapy.extensions.telnet] INFO: Telnet console listening on 127.0.0.1:6023
+2026-02-14 13:47:04 [scrapy-playwright] INFO: Starting download handler
+2026-02-14 13:47:04 [scrapy-playwright] INFO: Starting download handler
+2026-02-14 13:47:05 [scrapy.core.engine] DEBUG: Crawled (200) <GET https://zenity.io/robots.txt> (referer: None)
+2026-02-14 13:47:07 [scrapy.core.engine] DEBUG: Crawled (200) <GET https://zenity.io/careers> (referer: None)
+2026-02-14 13:47:07 [job_discovery] ERROR: hello1
+2026-02-14 13:47:08 [scrapy.core.engine] DEBUG: Crawled (200) <GET https://zenity.io/careers/hybrid-tel-aviv-jaffa-tel-aviv-district-israel/senior-devops-engineer/E7.E41> (referer: https://zenity.io/careers)
+2026-02-14 13:47:08 [scrapy.core.scraper] DEBUG: Scraped from <200 https://zenity.io/careers/hybrid-tel-aviv-jaffa-tel-aviv-district-israel/senior-devops-engineer/E7.E41>
+{'company': 'zenity', 'source_url': 'https://zenity.io/careers', 'title': 'Senior DevOps Engineer', 'href': 'https://zenity.io/careers/hybrid-tel-aviv-jaffa-tel-aviv-district-israel/senior-devops-engineer/E7.E41', 'resolved_via': 'html_extract', 'description': None}
+2026-02-14 13:47:09 [scrapy.core.engine] DEBUG: Crawled (200) <GET https://zenity.io/careers/hybrid-tel-aviv-jaffa-tel-aviv-district-israel/devops-engineer/FE.26A> (referer: https://zenity.io/careers)
+2026-02-14 13:47:09 [scrapy.core.scraper] DEBUG: Scraped from <200 https://zenity.io/careers/hybrid-tel-aviv-jaffa-tel-aviv-district-israel/devops-engineer/FE.26A>
+{'company': 'zenity', 'source_url': 'https://zenity.io/careers', 'title': 'DevOps Engineer', 'href': 'https://zenity.io/careers/hybrid-tel-aviv-jaffa-tel-aviv-district-israel/devops-engineer/FE.26A', 'resolved_via': 'html_extract', 'description': None}
+2026-02-14 13:47:09 [scrapy.core.engine] INFO: Closing spider (finished)
+2026-02-14 13:47:09 [scrapy.statscollectors] INFO: Dumping Scrapy stats:
+{'downloader/request_bytes': 1394,
+ 'downloader/request_count': 4,
+ 'downloader/request_method_count/GET': 4,
+ 'downloader/response_bytes': 271186,
+ 'downloader/response_count': 4,
+ 'downloader/response_status_count/200': 4,
+ 'elapsed_time_seconds': 5.421697,
+ 'finish_reason': 'finished',
+ 'finish_time': datetime.datetime(2026, 2, 14, 11, 47, 9, 616429, tzinfo=datetime.timezone.utc),
+ 'httpcompression/response_bytes': 1164126,
+ 'httpcompression/response_count': 3,
+ 'item_scraped_count': 2,
+ 'items_per_minute': 24.0,
+ 'log_count/DEBUG': 6,
+ 'log_count/ERROR': 1,
+ 'log_count/INFO': 5,
+ 'request_depth_max': 1,
+ 'response_received_count': 4,
+ 'responses_per_minute': 48.0,
+ 'robotstxt/request_count': 1,
+ 'robotstxt/response_count': 1,
+ 'robotstxt/response_status_count/200': 1,
+ 'scheduler/dequeued': 3,
+ 'scheduler/dequeued/memory': 3,
+ 'scheduler/enqueued': 3,
+ 'scheduler/enqueued/memory': 3,
+ 'start_time': datetime.datetime(2026, 2, 14, 11, 47, 4, 194732, tzinfo=datetime.timezone.utc)}
+2026-02-14 13:47:09 [scrapy.core.engine] INFO: Spider closed (finished)
+2026-02-14 13:47:09 [scrapy-playwright] INFO: Closing download handler
+2026-02-14 13:47:09 [scrapy-playwright] INFO: Closing download handler

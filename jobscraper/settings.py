@@ -12,6 +12,17 @@ BOT_NAME = "jobscraper"
 SPIDER_MODULES = ["jobscraper.spiders"]
 NEWSPIDER_MODULE = "jobscraper.spiders"
 
+TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
+
+DOWNLOAD_HANDLERS = {
+    "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+    "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+}
+
+# Optional: See the browser in action while debugging
+PLAYWRIGHT_LAUNCH_OPTIONS = {
+    "headless": True, 
+}
 ADDONS = {}
 
 
