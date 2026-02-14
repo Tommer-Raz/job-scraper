@@ -27,52 +27,52 @@ class JobDiscoverySpider(scrapy.Spider):
                 self.companies = json.load(f)
 
     async def start(self):
-        # for company in self.companies:
-            # job = JobCandidate(
-            #     company = company.get("Company"),
-            #     source_url = company.get("Careers URL")
-            # )
-            # yield scrapy.Request(company.get("Careers URL"), callback=self.parse, meta={"job": dict(job)})
-        job = JobCandidate(
-                company = "zenity",
-                source_url = "https://zenity.io/careers"
+        for company in self.companies:
+            job = JobCandidate(
+                company = company.get("Company"),
+                source_url = company.get("Careers URL")
             )
-        yield scrapy.Request("https://zenity.io/careers", callback=self.parse, meta={"job": dict(job)})
+            yield scrapy.Request(company.get("Careers URL"), callback=self.parse, meta={"job": dict(job)})
+        # job = JobCandidate(
+        #         company = "zenity",
+        #         source_url = "https://zenity.io/careers",
+        #     )
+        # yield scrapy.Request("https://zenity.io/careers", callback=self.parse, meta={"job": dict(job),})
     
     def parse(self, response):
         job = response.meta["job"]
         found_any = False
         script_text = self.js_var_extract(response, "COMPANY_POSITIONS_DATA")
         if script_text:
-            self.logger.error("hello2")
             for pos in self.script_extract(response, script_text, job):
                 found_any = True
                 yield pos 
         if not found_any:
-            self.logger.error("hello1")
             for pos in self.html_extract(response, job):
                 found_any = True
                 yield pos 
-        if not found_any and not response.meta.get("is_playwright"):
-            self.logger.error(response.body)
-            yield scrapy.Request(
-            url=response.url,
-            callback=self.parse,
-            meta={
-                "job": job,
-                "playwright": True, 
-                "is_playwright": True, # Mark this so we don't loop forever
-                "playwright_page_methods": [
-                    # Option A: Wait until the network goes quiet (Next.js is done fetching)
-                    # PageMethod("wait_for_load_state", "networkidle"),
+        # if not found_any and not response.meta.get("is_playwright"):
+        #     self.logger.error("3")
+        #     job['is_playwright'] = True
 
-                    # Option B: Wait for ANY link in the careers section 
-                    # (Adjust the selector based on the container ID if known)
-                    PageMethod("wait_for_selector", "a[href*='job'], a[href*='career']"), 
-                ],
-            },
-            dont_filter=True # Tell Scrapy: "Yes, I know I just visited this URL, do it anyway."
-        )
+        #     yield scrapy.Request(
+        #     url=response.url,
+        #     callback=self.parse,
+        #     meta={
+        #         "job": job,
+        #         "playwright": True, 
+        #         "is_playwright": True, # Mark this so we don't loop forever
+        #         "playwright_page_methods": [
+        #             # Option A: Wait until the network goes quiet (Next.js is done fetching)
+        #             # PageMethod("wait_for_load_state", "networkidle"),
+
+        #             # Option B: Wait for ANY link in the careers section 
+        #             # (Adjust the selector based on the container ID if known)
+        #             PageMethod("wait_for_selector", "a[href*='job'], a[href*='career']"), 
+        #         ],
+        #     },
+        #     dont_filter=True # Tell Scrapy: "Yes, I know I just visited this URL, do it anyway."
+        # )
       
     def parse_job_page(self, response):
         """
@@ -98,9 +98,8 @@ class JobDiscoverySpider(scrapy.Spider):
                     s.drop()
 
                 description = response.css(
-                    ".page-content, main, article, .job-description, .description"
+                    ".job-content, .page-content, main, article, .job-description, .description"
                 ).xpath("string(.)").get()
-
                 job["description"] = self.clean_description(description)
                 job["resolved_via"] = "html_extract"
 
@@ -173,7 +172,16 @@ class JobDiscoverySpider(scrapy.Spider):
             job['title'] = text
             job['href'] = href
             job['resolved_via'] = 'html_extract'
-            yield response.follow(href, callback=self.parse_job_page, meta={"job": dict(job)})
+            yield response.follow(href, 
+                                  callback=self.parse_job_page, 
+                                  meta={"job": dict(job),})
+            # yield response.follow(href, 
+            #                       callback=self.parse_job_page, 
+            #                       meta={"job": dict(job),                
+            #                             "playwright": job['is_playwright'], 
+            #                             "playwright_page_methods": [
+            #                                 PageMethod("wait_for_selector", "a[href*='job'], a[href*='career']"), 
+            #                         ],})
     
     def parse_text(self, text):
             if not text:
