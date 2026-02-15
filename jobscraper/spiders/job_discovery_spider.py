@@ -35,9 +35,9 @@ class JobDiscoverySpider(scrapy.Spider):
             yield scrapy.Request(company.get("Careers URL"), callback=self.parse, meta={"job": dict(job)})
         # job = JobCandidate(
         #         company = "zenity",
-        #         source_url = "https://zenity.io/careers",
+        #         source_url = "https://connecteam.com/careers/",
         #     )
-        # yield scrapy.Request("https://zenity.io/careers", callback=self.parse, meta={"job": dict(job),})
+        # yield scrapy.Request("https://connecteam.com/careers/", callback=self.parse, meta={"job": dict(job),})
     
     def parse(self, response):
         job = response.meta["job"]
@@ -101,10 +101,7 @@ class JobDiscoverySpider(scrapy.Spider):
                     ".job-content, .page-content, main, article, .job-description, .description"
                 ).xpath("string(.)").get()
                 if not description or len(description.strip()) < 150:
-                    description = response.xpath(
-                        "//div[contains(., 'Requirements') or contains(., 'Responsibilities') "
-                        "or contains(., 'Qualifications') or contains(., 'About the role')]"
-                        "[last()]//string(.)").get()
+                    description = response.xpath("//*[contains(@class, 'position') or contains(@class, 'job') or contains(@class, 'desc') or contains(@class, 'career')]").xpath("string(.)").get()
                 job["description"] = self.clean_description(description)
                 job["resolved_via"] = "html_extract"
 
@@ -160,12 +157,11 @@ class JobDiscoverySpider(scrapy.Spider):
 
     def html_extract(self, response, job):
         # We deliberately over-collect and filter in code
-        for el in response.css("a[href], button, div, li, span, h1, h2, h3, h4, h5, h6"):
+        for el in response.css("a[href], button, div, li, span, tr, td, h1, h2, h3, h4, h5, h6"):
             text = self.parse_text(el.xpath("normalize-space(.)").get())
             if not text:
                 continue
-
-            # href = self.parse_href(response, el.attrib.get("href"))
+            self.logger.error(el.get())
             href = self.parse_href(response, el.xpath(
             ".//@href | "                     # Link is the element itself
             "./ancestor::a/@href | "          # Link is a parent
