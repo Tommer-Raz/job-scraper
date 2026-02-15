@@ -100,6 +100,11 @@ class JobDiscoverySpider(scrapy.Spider):
                 description = response.css(
                     ".job-content, .page-content, main, article, .job-description, .description"
                 ).xpath("string(.)").get()
+                if not description or len(description.strip()) < 150:
+                    description = response.xpath(
+                        "//div[contains(., 'Requirements') or contains(., 'Responsibilities') "
+                        "or contains(., 'Qualifications') or contains(., 'About the role')]"
+                        "[last()]//string(.)").get()
                 job["description"] = self.clean_description(description)
                 job["resolved_via"] = "html_extract"
 

@@ -9,3 +9,4 @@ wheels/
 # Virtual environments
 .venv
 jobs_output.json
+*.log
