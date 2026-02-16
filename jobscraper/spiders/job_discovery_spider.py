@@ -9,9 +9,14 @@ class JobDiscoverySpider(scrapy.Spider):
     name = "job_discovery"
     # start_urls = ["https://www.comeet.com/jobs/arpeely/57.001"]
     ROLE_KEYWORDS = re.compile(
-    r"\b(devops|mlops)\s+(engineer)\b|\bSRE\b",
-    re.IGNORECASE
-)
+        r"\b(devops|mlops)\s+(engineer)\b|\bSRE\b",
+        re.IGNORECASE
+    )
+
+    GENERIC_ROLE_KEYWORDS = re.compile(
+        r"(engineer|recruiter|researcher|leader|developer|manager|specialist|technician)",
+        re.IGNORECASE
+    )
 
     NOISE_KEYWORDS = re.compile(
         r"(privacy|terms|about|contact|blog|login)",
@@ -35,9 +40,9 @@ class JobDiscoverySpider(scrapy.Spider):
             yield scrapy.Request(company.get("Careers URL"), callback=self.parse, meta={"job": dict(job)})
         # job = JobCandidate(
         #         company = "zenity",
-        #         source_url = "https://connecteam.com/careers/",
+        #         source_url = "https://www.comeet.com/jobs/arpeely/57.001",
         #     )
-        # yield scrapy.Request("https://connecteam.com/careers/", callback=self.parse, meta={"job": dict(job),})
+        # yield scrapy.Request("https://www.comeet.com/jobs/arpeely/57.001", callback=self.parse, meta={"job": dict(job),})
     
     def parse(self, response):
         job = response.meta["job"]
@@ -51,28 +56,23 @@ class JobDiscoverySpider(scrapy.Spider):
             for pos in self.html_extract(response, job):
                 found_any = True
                 yield pos 
-        # if not found_any and not response.meta.get("is_playwright"):
-        #     self.logger.error("3")
-        #     job['is_playwright'] = True
-
-        #     yield scrapy.Request(
-        #     url=response.url,
-        #     callback=self.parse,
-        #     meta={
-        #         "job": job,
-        #         "playwright": True, 
-        #         "is_playwright": True, # Mark this so we don't loop forever
-        #         "playwright_page_methods": [
-        #             # Option A: Wait until the network goes quiet (Next.js is done fetching)
-        #             # PageMethod("wait_for_load_state", "networkidle"),
-
-        #             # Option B: Wait for ANY link in the careers section 
-        #             # (Adjust the selector based on the container ID if known)
-        #             PageMethod("wait_for_selector", "a[href*='job'], a[href*='career']"), 
-        #         ],
-        #     },
-        #     dont_filter=True # Tell Scrapy: "Yes, I know I just visited this URL, do it anyway."
-        # )
+        if not found_any and not response.meta.get("is_playwright"):
+            visible_text = " ".join(response.xpath("//a//text() | //h2//text() | //h3//text() | //li//text()").getall())
+            if not self.GENERIC_ROLE_KEYWORDS.search(visible_text):
+                yield scrapy.Request(
+                url=response.url,
+                callback=self.parse,
+                meta={
+                    "job": job,
+                    "playwright": True, 
+                    "is_playwright": True, # Mark this so we don't loop forever
+                    "playwright_page_methods": [
+                        PageMethod("wait_for_selector", "a[href*='job'], a[href*='career'], a[href*='position'], a[href*='opening']", state="attached"), 
+                        PageMethod("wait_for_load_state", "networkidle")
+                    ],
+                },
+                dont_filter=True # Tell Scrapy: "Yes, I know I just visited this URL, do it anyway."
+        )
       
     def parse_job_page(self, response):
         """
@@ -105,7 +105,7 @@ class JobDiscoverySpider(scrapy.Spider):
                 job["description"] = self.clean_description(description)
                 job["resolved_via"] = "html_extract"
 
-            yield job
+        yield job
 
     def json_ld_description_extract(self, response):
         json_ld_data = response.xpath('//script[@type="application/ld+json"]/text()').getall()
@@ -161,7 +161,6 @@ class JobDiscoverySpider(scrapy.Spider):
             text = self.parse_text(el.xpath("normalize-space(.)").get())
             if not text:
                 continue
-            self.logger.error(el.get())
             href = self.parse_href(response, el.xpath(
             ".//@href | "                     # Link is the element itself
             "./ancestor::a/@href | "          # Link is a parent

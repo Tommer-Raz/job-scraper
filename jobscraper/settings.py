@@ -31,11 +31,13 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
+LOG_LEVEL = 'INFO'
 
 # Concurrency and throttling settings
 #CONCURRENT_REQUESTS = 16
 CONCURRENT_REQUESTS_PER_DOMAIN = 1
 DOWNLOAD_DELAY = 1
+DNS_RESOLVER = 'scrapy.resolver.CachingHostnameResolver'
 
 # Disable cookies (enabled by default)
 #COOKIES_ENABLED = False
