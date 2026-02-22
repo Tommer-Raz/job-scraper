@@ -38,7 +38,9 @@ LOG_LEVEL = 'INFO'
 CONCURRENT_REQUESTS_PER_DOMAIN = 1
 DOWNLOAD_DELAY = 1
 DNS_RESOLVER = 'scrapy.resolver.CachingHostnameResolver'
-
+DOWNLOADER_CLIENT_TLS_METHOD = "TLS"
+DOWNLOADER_CLIENT_TLS_METHOD = 'TLSv1.2'
+DOWNLOADER_CLIENTCONTEXTFACTORY = 'jobscraper.context.CustomContextFactory'
 # Disable cookies (enabled by default)
 #COOKIES_ENABLED = False
 

@@ -5,6 +5,10 @@ from jobscraper.items import JobCandidate
 from w3lib.html import remove_tags
 from scrapy_playwright.page import PageMethod
 
+TITLE_FIELDS = {'title', 'name', 'position', 'role', 'jobTitle', 'heading'}
+URL_FIELDS = {'url', 'href', 'link', 'path', 'slug', 'canonicalUrl', 'jobUrl'}
+DESCRIPTION_FIELDS = {'description', 'content', 'text', 'body', 'summary', 'details', 'requirements', 'responsibilities', 'fullDescription', 'jobDescription', 'positionDescription'}
+
 class JobDiscoverySpider(scrapy.Spider):
     name = "job_discovery"
     # start_urls = ["https://www.comeet.com/jobs/arpeely/57.001"]
@@ -40,9 +44,9 @@ class JobDiscoverySpider(scrapy.Spider):
             yield scrapy.Request(company.get("Careers URL"), callback=self.parse, meta={"job": dict(job)})
         # job = JobCandidate(
         #         company = "zenity",
-        #         source_url = "https://www.comeet.com/jobs/arpeely/57.001",
+        #         source_url = "https://makers.lemonade.com/",
         #     )
-        # yield scrapy.Request("https://www.comeet.com/jobs/arpeely/57.001", callback=self.parse, meta={"job": dict(job),})
+        # yield scrapy.Request("https://makers.lemonade.com/", callback=self.parse, meta={"job": dict(job),})
     
     def parse(self, response):
         job = response.meta["job"]
@@ -52,6 +56,12 @@ class JobDiscoverySpider(scrapy.Spider):
             for pos in self.script_extract(response, script_text, job):
                 found_any = True
                 yield pos 
+        
+        if not found_any:
+            for pos in self.next_data_extract(response, job):
+                found_any = True
+                yield pos
+        
         if not found_any:
             for pos in self.html_extract(response, job):
                 found_any = True
@@ -88,6 +98,16 @@ class JobDiscoverySpider(scrapy.Spider):
                 combined_description = "\n\n".join(full_description)
                 job["description"] = self.clean_description(remove_tags(combined_description))
                 job["resolved_via"] = "js"
+        elif job["resolved_via"] == "next_data":
+            next_data = response.xpath('//script[@id="__NEXT_DATA__"]/text()').get()
+            if next_data:
+                try:
+                    data = json.loads(next_data)
+                    desc = self._find_description_in_json(data)
+                    if desc:
+                        job["description"] = self.clean_description(remove_tags(desc))
+                except json.JSONDecodeError:
+                    pass
         elif job["resolved_via"] == "html_extract":
             structured_desc = self.json_ld_description_extract(response)
             if structured_desc:
@@ -104,7 +124,6 @@ class JobDiscoverySpider(scrapy.Spider):
                     description = response.xpath("//*[contains(@class, 'position') or contains(@class, 'job') or contains(@class, 'desc') or contains(@class, 'career')]").xpath("string(.)").get()
                 job["description"] = self.clean_description(description)
                 job["resolved_via"] = "html_extract"
-
         yield job
 
     def json_ld_description_extract(self, response):
@@ -153,6 +172,67 @@ class JobDiscoverySpider(scrapy.Spider):
             if match:
                 json_string = match.group(1)
                 return json_string
+        return None
+
+    def next_data_extract(self, response, job):
+        next_data = response.xpath('//script[@id="__NEXT_DATA__"]/text()').get()
+        if not next_data:
+            return
+        
+        try:
+            data = json.loads(next_data)
+        except json.JSONDecodeError:
+            return
+        
+        for obj in self._find_job_objects(data):
+            title = obj.get('title') or obj.get('name') or obj.get('position') or obj.get('role') or obj.get('jobTitle')
+            url = obj.get('url') or obj.get('href') or obj.get('link') or obj.get('path') or obj.get('slug') or obj.get('canonicalUrl') or obj.get('jobUrl')
+            if title and url and self.ROLE_KEYWORDS.search(title):
+                job_copy = dict(job)
+                job_copy['title'] = title
+                job_copy['href'] = response.urljoin(url)
+                job_copy['resolved_via'] = 'next_data'
+                yield response.follow(url, callback=self.parse_job_page, meta={'job': job_copy})
+
+    def _find_job_objects(self, obj, depth=0):
+        if depth > 10:
+            return
+        
+        if isinstance(obj, list):
+            if obj and isinstance(obj[0], dict):
+                first_item = obj[0]
+                has_title = any(k.lower() in TITLE_FIELDS for k in first_item.keys())
+                has_url = any(k.lower() in URL_FIELDS for k, v in first_item.items() if isinstance(v, str) and (v.startswith('http') or v.startswith('/')))
+                
+                if has_title and has_url:
+                    yield from obj
+            
+            for item in obj:
+                yield from self._find_job_objects(item, depth + 1)
+        elif isinstance(obj, dict):
+            for value in obj.values():
+                yield from self._find_job_objects(value, depth + 1)
+
+    def _find_description_in_json(self, obj, depth=0):
+        if depth > 10:
+            return None
+        
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key.lower() in DESCRIPTION_FIELDS and isinstance(value, str) and len(value) > 50:
+                    return value
+            
+            for value in obj.values():
+                result = self._find_description_in_json(value, depth + 1)
+                if result:
+                    return result
+        
+        elif isinstance(obj, list):
+            for item in obj:
+                result = self._find_description_in_json(item, depth + 1)
+                if result:
+                    return result
+        
         return None
 
     def html_extract(self, response, job):
